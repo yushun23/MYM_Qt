@@ -12,12 +12,15 @@ from mym2.core.paths import get_data_dir, reset_override, set_data_dir
 
 @pytest.fixture(autouse=True)
 def _clean_path_override() -> None:
-    """每个测试前后重置路径覆写并使用临时目录。"""
-    tmp = Path('/tmp/mym2_test_startup')
+    """每个测试前后重置路径覆写并使用唯一临时目录。"""
+    import uuid
+    tmp = Path('/tmp') / f'mym2_test_{uuid.uuid4().hex[:8]}'
     tmp.mkdir(parents=True, exist_ok=True)
     set_data_dir(tmp)
     yield
+    import shutil
     reset_override()
+    shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_qapplication_creatable(qapp: QApplication) -> None:
@@ -29,7 +32,7 @@ def test_qapplication_creatable(qapp: QApplication) -> None:
 
 def test_bootstrap_reuses_existing_qapp(qapp: QApplication) -> None:
     """bootstrap() 复用已有的 QApplication 而非创建新的。"""
-    window = bootstrap(data_dir=Path('/tmp/mym2_test_bootstrap'))
+    window = bootstrap(data_dir=Path('/tmp/mym2_test_bootstrap'), auto_migrate=False)
     try:
         assert window is not None
         app = QApplication.instance()
@@ -40,7 +43,7 @@ def test_bootstrap_reuses_existing_qapp(qapp: QApplication) -> None:
 
 def test_main_window_has_seven_nav_items(qapp: QApplication) -> None:
     """主窗口导航栏有 7 个占位页面，不含股票相关导航。"""
-    window = bootstrap(data_dir=Path('/tmp/mym2_test_nav'))
+    window = bootstrap(data_dir=Path('/tmp/mym2_test_nav'), auto_migrate=False)
     try:
         assert window.nav_count == 7, f'期望 7 个导航项，实际 {window.nav_count}'
 
@@ -61,7 +64,7 @@ def test_main_window_has_seven_nav_items(qapp: QApplication) -> None:
 
 def test_navigation_switches_pages(qapp: QApplication) -> None:
     """点击导航按钮可切换页面。"""
-    window = bootstrap(data_dir=Path('/tmp/mym2_test_nav2'))
+    window = bootstrap(data_dir=Path('/tmp/mym2_test_nav2'), auto_migrate=False)
     try:
         assert window.current_page_key == 'dashboard'
 
@@ -96,7 +99,7 @@ def test_no_flet_import() -> None:
 
 def test_window_close_no_exception(qapp: QApplication) -> None:
     """窗口关闭不抛异常。"""
-    window = bootstrap(data_dir=Path('/tmp/mym2_test_close'))
+    window = bootstrap(data_dir=Path('/tmp/mym2_test_close'), auto_migrate=False)
     window.show()
     window.close()
     # 不抛异常即通过

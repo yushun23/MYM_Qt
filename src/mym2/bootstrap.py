@@ -1,6 +1,6 @@
 """MYM2 应用启动引导。
 
-负责：创建 QApplication、初始化日志、设置全局样式、创建主窗口。
+负责：创建 QApplication、初始化日志、数据库迁移、设置全局样式、创建主窗口。
 """
 
 import logging
@@ -10,7 +10,8 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication
 
 from mym2.core.logging import install_excepthook, setup_logging
-from mym2.core.paths import get_logs_dir, set_data_dir
+from mym2.core.paths import get_db_path, get_logs_dir, set_data_dir
+from mym2.db.migrate import upgrade_to_head
 from mym2.ui.main_window import MainWindow
 
 GLOBAL_STYLE = """
@@ -28,12 +29,14 @@ def bootstrap(
     *,
     data_dir: Path | None = None,
     log_level: int = logging.INFO,
+    auto_migrate: bool = True,
 ) -> MainWindow:
     """初始化 MYM2 应用并返回主窗口。
 
     Args:
         data_dir: 覆写用户数据目录（测试/开发用）。
         log_level: 日志级别。
+        auto_migrate: 是否自动运行数据库迁移（测试可设为 False）。
 
     Returns:
         已初始化但未显示的 MainWindow 实例。
@@ -57,6 +60,12 @@ def bootstrap(
     logger = setup_logging(get_logs_dir(), level=log_level)
     install_excepthook(logger)
     logger.info('MYM2 启动 — 版本 %s', '0.1.0')
+
+    # 数据库迁移
+    if auto_migrate:
+        db_path = get_db_path()
+        upgrade_to_head(db_path)
+        logger.info('数据库路径: %s', db_path)
 
     window = MainWindow()
     return window
