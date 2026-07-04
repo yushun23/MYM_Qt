@@ -112,24 +112,31 @@ def validate_account_for_transaction_type(
     """
     validate_account_writable(account)
 
-    if transaction_type in (
-        TransactionType.RECEIVABLE_ADVANCE,
-        TransactionType.RECEIVABLE_REPAYMENT,
-    ):
-        # 应收交易必须有 receivable 账户参与
-        if role == 'in' and account.type != AccountType.RECEIVABLE:
-            raise ValueError(
-                f'应收垫付的 target 账户必须为 receivable 类型，'
-                f'但 "{account.name}" 类型为 {account.type}'
-            )
-        if role == 'out' and account.type == AccountType.RECEIVABLE:
-            pass  # receivable_repayment 时 out 是 receivable
-        elif role == 'out' and account.type != AccountType.RECEIVABLE:
-            if transaction_type == TransactionType.RECEIVABLE_ADVANCE:
-                pass  # advance 时 out 是普通资产
-            else:
+    if transaction_type == TransactionType.RECEIVABLE_ADVANCE:
+        # advance: out=funding(非应收), in=debtor(必须是receivable)
+        if role == 'in':
+            if account.type != AccountType.RECEIVABLE:
                 raise ValueError(
-                    '应收还款的 source 账户必须为 receivable 类型'
+                    f'应收垫付的收款方必须为 receivable 类型，'
+                    f'但 "{account.name}" 类型为 {account.type}'
                 )
+        elif role == 'out' and account.type == AccountType.RECEIVABLE:
+            raise ValueError(
+                f'应收垫付的资金来源不能是应收账户，'
+                f'但 "{account.name}" 类型为 receivable'
+            )
+    elif transaction_type == TransactionType.RECEIVABLE_REPAYMENT:
+        # repayment: out=debtor(必须是receivable), in=collection(非应收)
+        if role == 'out':
+            if account.type != AccountType.RECEIVABLE:
+                raise ValueError(
+                    f'应收还款的付款方必须为 receivable 类型，'
+                    f'但 "{account.name}" 类型为 {account.type}'
+                )
+        elif role == 'in' and account.type == AccountType.RECEIVABLE:
+            raise ValueError(
+                f'应收还款的收款方不能是应收账户，'
+                f'但 "{account.name}" 类型为 receivable'
+            )
     else:
         validate_account_not_receivable(account)

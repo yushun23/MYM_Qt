@@ -19,13 +19,14 @@
 | 08 | 日常流水（新增/筛选/编辑/删除/导出） | ✅ 完成 | 2026-07-04 | 待提交 |
 | 09 | 离线 ECharts 与仪表盘 | ✅ 完成 | 2026-07-04 | 待提交 |
 | 10 | 预算模块 | ✅ 完成 | 2026-07-04 | 待提交 |
-| 11 | 导入/导出 | ⏳ 待开始 | — | — |
-| 12 | 备份恢复 | ⏳ 待开始 | — | — |
-| 13 | 数据迁移器 | ⏳ 待开始 | — | — |
-| 14 | 图表完善 | ⏳ 待开始 | — | — |
-| 15 | 测试覆盖 | ⏳ 待开始 | — | — |
-| 16 | AI 助手（可选） | ⏳ 待开始 | — | — |
-| 17 | 发布准备 | ⏳ 待开始 | — | — |
+| 11 | 应收管理 | ✅ 完成 | 2026-07-04 | 待提交 |
+| 12 | 导入/导出 | ⏳ 待开始 | — | — |
+| 13 | 备份恢复 | ⏳ 待开始 | — | — |
+| 14 | 数据迁移器 | ⏳ 待开始 | — | — |
+| 15 | 图表完善 | ⏳ 待开始 | — | — |
+| 16 | 测试覆盖 | ⏳ 待开始 | — | — |
+| 17 | AI 助手（可选） | ⏳ 待开始 | — | — |
+| 18 | 发布准备 | ⏳ 待开始 | — | — |
 
 ---
 
@@ -95,6 +96,90 @@
 - ✅ schema 无 REAL 金额列
 - ✅ 所有 `*_minor` 列类型为 INTEGER
 - ✅ 每个测试使用隔离数据库
+
+---
+
+## 第 11 步完成详情
+
+### 新增/修改文件
+
+**服务层：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/services/receivable_service.py` | ReceivableService：垫付/还款/删除/查询/汇总，委托 LedgerService 写账 |
+| `src/mym2/services/validators.py` | 修正 `validate_account_for_transaction_type` 对 receivable_advance/receivable_repayment 的验证逻辑 |
+
+**仓储层：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/repositories/receivable_repo.py` | ReceivableRepository：应收账户/流水只读查询 |
+| `src/mym2/repositories/__init__.py` | 导出 ReceivableRepository |
+
+**服务层（修改）：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/services/__init__.py` | 导出 ReceivableService |
+
+**UI 页面：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/ui/pages/receivables_page.py` | 完整应收管理页面：待收列表/历史流水/债务人汇总三标签页，新增垫付/收回欠款对话框（支持部分/全部还款），删除流水，筛选（债务人/类型/日期范围），双击快速还款 |
+
+**测试：**
+| 文件 | 说明 |
+|------|------|
+| `tests/test_receivable_service.py` | 20 个集成测试 |
+
+### 功能实现
+
+**ReceivableService：**
+- `advance()`：垫付/借出，资金从现金/银行卡流入应收账户
+- `repay()`：收回欠款，从应收账户流回收款账户，支持部分/全部还款
+- `delete_receivable_transaction()`：删除应收相关流水（仅限 receivable_advance/receivable_repayment 类型）
+- `get_receivable_accounts()`：获取所有 receivable 类型账户
+- `get_receivable_balance()`：查询应收余额
+- `get_receivable_transactions()`：按债务人/类型/日期范围查询应收流水
+- `get_pending_receivables()`：获取有未收余额的债务人汇总
+- `get_all_receivable_summaries()`：获取全部债务人汇总（含已结清）
+- `build_transaction_views()`：构建 UI 视图对象
+- `get_non_receivable_asset_accounts()`：获取可用于垫付/还款的非应收资产账户
+
+**应收页面（ReceivablesPage）：**
+- 三个标签页：待收列表、历史流水、债务人汇总
+- 新增垫付对话框：选择债务人 + 资金来源 + 金额 + 日期 + 备注
+- 收回欠款对话框：选择债务人 + 收款账户 + 金额（留空=全部收回）+ 日期 + 备注
+- 全部收回复选框：自动填满当前待收余额
+- 历史流水筛选：债务人/类型（垫付/还款）/日期范围
+- 双击表格行快速还款
+- 删除选中流水（确认对话框）
+- 余额实时刷新
+
+**安全规则遵守：**
+- 所有写操作通过 ReceivableService → LedgerService，UI 不直写数据库
+- 普通流水编辑器阻止将 expense/income 写入应收账户（validate_account_not_receivable）
+- 还款金额不超过当前应收余额（服务层验证）
+- 垫付资金来源不能是应收账户（验证）
+- 还款收款方不能是应收账户（验证）
+- 删除只允许 receivable_advance/receivable_repayment 类型
+
+### 验收结果
+- ✅ `ruff check .` — All checks passed
+- ✅ `python -m pytest` — **413 passed**（+20 新增应收测试）
+- ✅ 部分还款后余额准确
+- ✅ 全部还款后余额归零
+- ✅ 删除垫付后余额恢复归零
+- ✅ 删除还款后余额恢复原始值
+- ✅ 不能将普通支出写入应收账户（ValueError）
+- ✅ 不能将普通收入写入应收账户（ValueError）
+- ✅ 垫付资金来源为应收账户时被拒绝
+- ✅ 还款收款方为应收账户时被拒绝
+- ✅ 多次垫付/还款后余额与逐笔重算一致
+
+### 变更记录更新
+
+| 日期 | 步骤 | 变更说明 |
+|------|------|----------|
+| 2026-07-04 | 11 | 应收管理 — ReceivableService + ReceivableRepository + ReceivablesPage + 20 测试 |
 
 ---
 
