@@ -1,0 +1,36 @@
+# 旧系统输入（不跟踪）
+legacy_input/
+
+# 运行时数据
+data/
+backups/
+logs/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# 数据库文件
+*.mym
+*.db
+*.sqlite
+*.sqlite3
+
+# 系统文件
+.DS_Store
+
+# 构建产物
+dist/
+build/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 环境变量（如含密钥）
+.env
