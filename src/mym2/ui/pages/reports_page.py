@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from mym2.core.paths import get_db_path
 from mym2.db.models.account import Account
 from mym2.db.models.category import Category
 from mym2.db.session import get_session
@@ -32,6 +33,12 @@ from mym2.services.report_service import (
     ReportKind,
     ReportResult,
     ReportService,
+)
+from mym2.ui.workers import (
+    ReportExportRequest,
+    ReportExportWorker,
+    WorkerResult,
+    start_worker,
 )
 
 logger = logging.getLogger('mym2.ui.reports_page')
@@ -114,6 +121,7 @@ class ReportsPage(QWidget):
         self._result: ReportResult | None = None
         self._account_ids: list[str] = []
         self._category_ids: list[str] = []
+        self._worker_threads: list[Any] = []
         self._setup_ui()
         self._load_filter_options()
 
@@ -278,15 +286,15 @@ class ReportsPage(QWidget):
         return self._kind_combo.currentData()
 
     def _on_export_csv(self) -> None:
-        self._export('CSV 文件 (*.csv)', 'report.csv', self._service.export_csv)
+        self._export('CSV 文件 (*.csv)', 'report.csv', 'csv')
 
     def _on_export_excel(self) -> None:
-        self._export('Excel 文件 (*.xlsx)', 'report.xlsx', self._service.export_excel)
+        self._export('Excel 文件 (*.xlsx)', 'report.xlsx', 'excel')
 
     def _on_export_pdf(self) -> None:
-        self._export('PDF 文件 (*.pdf)', 'report.pdf', self._service.export_pdf)
+        self._export('PDF 文件 (*.pdf)', 'report.pdf', 'pdf')
 
-    def _export(self, file_filter: str, default_name: str, exporter) -> None:
+    def _export(self, file_filter: str, default_name: str, file_format: str) -> None:
         if self._result is None:
             return
         path, _selected = QFileDialog.getSaveFileName(
@@ -297,12 +305,31 @@ class ReportsPage(QWidget):
         )
         if not path:
             return
-        try:
-            exporter(self._result, path)
-        except OSError as exc:
-            QMessageBox.warning(self, '导出失败', str(exc))
-            return
-        QMessageBox.information(self, '导出完成', f'已导出到:\n{path}')
+        request = ReportExportRequest(
+            db_path=str(get_db_path()),
+            output_path=path,
+            kind=self._current_kind(),
+            filters=self._build_filter(),
+            format=file_format,
+        )
+        worker = ReportExportWorker(request)
+        thread = start_worker(
+            worker,
+            on_finished=self._on_export_finished,
+            on_failed=self._on_export_failed,
+        )
+        self._worker_threads.append(thread)
+        thread.finished.connect(lambda: self._worker_threads.remove(thread))
+
+    def _on_export_finished(self, result: WorkerResult) -> None:
+        QMessageBox.information(
+            self,
+            '导出完成',
+            f'已导出 {result.row_count} 行到:\n{result.output_path}',
+        )
+
+    def _on_export_failed(self, message: str) -> None:
+        QMessageBox.warning(self, '导出失败', message)
 
     @staticmethod
     def _format_summary(result: ReportResult) -> str:

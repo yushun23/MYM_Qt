@@ -14,18 +14,10 @@ from mym2.core.paths import get_db_path, get_logs_dir, set_data_dir
 from mym2.db.engine import create_mym2_engine
 from mym2.db.ensure_schema import ensure_budget_columns
 from mym2.db.migrate import upgrade_to_head
-from mym2.db.session import init_session_factory
+from mym2.db.session import get_session, init_session_factory
+from mym2.services.settings_service import SettingsService
 from mym2.ui.main_window import MainWindow
-
-GLOBAL_STYLE = """
-QMainWindow {
-    background: #1e1f2b;
-}
-QWidget {
-    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
-    color: #ddd;
-}
-"""
+from mym2.ui.theme import apply_theme
 
 
 def bootstrap(
@@ -53,7 +45,7 @@ def bootstrap(
     app.setApplicationName('MYM2')
     app.setApplicationVersion('0.1.0')
     app.setOrganizationName('MYM2')
-    app.setStyleSheet(GLOBAL_STYLE)
+    apply_theme('dark', app)
 
     font = QFont()
     font.setPointSize(11)
@@ -76,6 +68,13 @@ def bootstrap(
     # 确保 budget 扩展列存在（幂等添加）
     ensure_budget_columns(engine)
 
+    session = get_session()
+    try:
+        apply_theme(SettingsService().get(session, 'theme', 'dark') or 'dark', app)
+    except Exception:
+        logger.debug('主题设置读取失败，使用默认主题', exc_info=True)
+    finally:
+        session.close()
+
     window = MainWindow()
     return window
-

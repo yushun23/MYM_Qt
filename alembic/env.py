@@ -37,7 +37,7 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
 
-    with connectable.connect() as connection:
+    with connectable.begin() as connection:
         # 对 SQLite 启用外键
         connection.execute(text('PRAGMA foreign_keys = ON'))
 

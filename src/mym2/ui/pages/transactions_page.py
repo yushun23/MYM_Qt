@@ -44,7 +44,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from sqlalchemy import or_, select
+from sqlalchemy.orm import aliased
 
+from mym2.core.paths import get_db_path
 from mym2.db.models.account import Account
 from mym2.db.models.category import Category
 from mym2.db.models.transaction import Transaction
@@ -54,6 +57,12 @@ from mym2.repositories.transaction_repo import TransactionFilter, TransactionRep
 from mym2.services.balance_service import BalanceService
 from mym2.services.dto import CreateTransactionDTO, UpdateTransactionDTO
 from mym2.services.ledger_service import LedgerService
+from mym2.ui.workers import (
+    TransactionExportRequest,
+    TransactionExportWorker,
+    WorkerResult,
+    start_worker,
+)
 
 logger = logging.getLogger("mym2.ui.transactions_page")
 
@@ -524,6 +533,7 @@ class TransactionsPage(QWidget):
         self._sort_desc = True
         self._all_accounts: list[Account] = []
         self._all_categories: list[Category] = []
+        self._worker_threads: list[Any] = []
 
         self._setup_ui()
         self._connect_signals()
@@ -1052,7 +1062,7 @@ class TransactionsPage(QWidget):
 
     def _on_export(self) -> None:
         """按当前筛选条件导出 CSV。"""
-        path, selected_filter = QFileDialog.getSaveFileName(
+        path, _selected_filter = QFileDialog.getSaveFileName(
             self,
             "导出流水",
             "transactions.csv",
@@ -1061,11 +1071,31 @@ class TransactionsPage(QWidget):
         if not path:
             return
 
-        try:
-            self._do_export_csv(path)
-            QMessageBox.information(self, "导出完成", f"已导出到:\n{path}")
-        except OSError as e:
-            QMessageBox.warning(self, "导出失败", str(e))
+        request = TransactionExportRequest(
+            db_path=str(get_db_path()),
+            output_path=path,
+            filters=self._build_filters(),
+            sort_column=self._sort_column,
+            sort_desc=self._sort_desc,
+        )
+        worker = TransactionExportWorker(request)
+        thread = start_worker(
+            worker,
+            on_finished=self._on_export_finished,
+            on_failed=self._on_export_failed,
+        )
+        self._worker_threads.append(thread)
+        thread.finished.connect(lambda: self._worker_threads.remove(thread))
+
+    def _on_export_finished(self, result: WorkerResult) -> None:
+        QMessageBox.information(
+            self,
+            "导出完成",
+            f"已导出 {result.row_count} 条到:\n{result.output_path}",
+        )
+
+    def _on_export_failed(self, message: str) -> None:
+        QMessageBox.warning(self, "导出失败", message)
 
     def _do_export_csv(self, path: str) -> None:
         """导出当前筛选条件的全部数据为 CSV。
@@ -1122,39 +1152,42 @@ class TransactionsPage(QWidget):
         """查看指定账户的流水（只读）。"""
         session = get_session()
         try:
-            txs = session.execute(
-                __import__("sqlalchemy").select(Transaction).where(
-                    (Transaction.account_out_id == account_id)
-                    | (Transaction.account_in_id == account_id)
-                ).order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())
-            ).scalars().all()
-
-            cat_map: dict[str, Category] = {}
-            acct_map: dict[str, Account] = {}
-            for tx in txs:
-                if tx.category_id and tx.category_id not in cat_map and tx.category:
-                    cat_map[tx.category_id] = tx.category
-                if tx.account_in_id and tx.account_in_id not in acct_map and tx.account_in:
-                    acct_map[tx.account_in_id] = tx.account_in
-                if tx.account_out_id and tx.account_out_id not in acct_map and tx.account_out:
-                    acct_map[tx.account_out_id] = tx.account_out
-
+            account_out = aliased(Account)
+            account_in = aliased(Account)
+            tx_rows = session.execute(
+                select(
+                    Transaction,
+                    Category.name.label("category_name"),
+                    account_out.name.label("account_out_name"),
+                    account_in.name.label("account_in_name"),
+                )
+                .join(account_out, Transaction.account_out_id == account_out.id)
+                .outerjoin(account_in, Transaction.account_in_id == account_in.id)
+                .outerjoin(Category, Transaction.category_id == Category.id)
+                .where(
+                    or_(
+                        Transaction.account_out_id == account_id,
+                        Transaction.account_in_id == account_id,
+                    )
+                )
+                .order_by(
+                    Transaction.transaction_date.desc(),
+                    Transaction.created_at.desc(),
+                )
+            ).all()
             rows = []
-            for tx in txs:
-                cat = cat_map.get(tx.category_id)
+            for tx, category_name, account_out_name, account_in_name in tx_rows:
                 counterparty = ""
                 if tx.account_out_id != account_id:
-                    a = acct_map.get(tx.account_out_id)
-                    counterparty = a.name if a else tx.account_out_id
+                    counterparty = account_out_name or tx.account_out_id
                 elif tx.account_in_id != account_id:
-                    a = acct_map.get(tx.account_in_id)
-                    counterparty = a.name if a else tx.account_in_id
+                    counterparty = account_in_name or tx.account_in_id
 
                 rows.append({
                     "date": str(tx.transaction_date),
                     "type": TX_TYPE_LABELS.get(tx.type, tx.type),
                     "amount": _minor_to_yuan(tx.amount_minor),
-                    "category": cat.name if cat else "",
+                    "category": category_name or "",
                     "note": tx.note or "",
                     "counterparty": counterparty,
                 })

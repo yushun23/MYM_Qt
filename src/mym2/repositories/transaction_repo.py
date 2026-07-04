@@ -75,9 +75,7 @@ class TransactionRepository:
         # 筛选
         q = self._apply_filters(q, filters)
 
-        # 总数
-        count_q = select(func.count()).select_from(q.subquery())
-        total = self._session.scalar(count_q) or 0
+        total = self.count_filtered(filters)
 
         # 稳定排序：主列 → created_at → id
         col = getattr(Transaction, sort_column, Transaction.transaction_date)
@@ -97,6 +95,12 @@ class TransactionRepository:
             page=page,
             page_size=page_size,
         )
+
+    def count_filtered(self, filters: TransactionFilter) -> int:
+        """返回筛选条件下的流水总数。"""
+        q = self._apply_filters(select(Transaction.id), filters)
+        count_q = select(func.count()).select_from(q.subquery())
+        return int(self._session.scalar(count_q) or 0)
 
     def _apply_filters(self, q: Any, filters: TransactionFilter) -> Any:
         if filters.date_from:

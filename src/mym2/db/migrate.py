@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from pathlib import Path
 
 from alembic.config import Config
@@ -15,6 +16,7 @@ from alembic import command
 logger = logging.getLogger('mym2.db.migrate')
 
 _ALEMBIC_INI: str | None = None
+_INITIAL_REVISION = '81c53c9ecdc7'
 
 
 def set_alembic_ini_path(path: str) -> None:
@@ -42,8 +44,47 @@ def upgrade_to_head(db_path: str | Path) -> None:
     Args:
         db_path: 数据库文件路径。
     """
+    db_path = Path(db_path)
+    _repair_empty_sqlite_revision(db_path)
     db_url = f'sqlite:///{db_path}'
     cfg = _get_alembic_cfg(db_url)
     logger.info('正在升级数据库到最新版本...')
     command.upgrade(cfg, 'head')
     logger.info('数据库升级完成')
+
+
+def _repair_empty_sqlite_revision(db_path: Path) -> None:
+    """修复早期已建初始表但 alembic_version 为空的 SQLite 库。"""
+    if not db_path.exists() or db_path.stat().st_size == 0:
+        return
+    try:
+        with db_path.open('rb') as fh:
+            if fh.read(16) != b'SQLite format 3\x00':
+                return
+    except OSError:
+        return
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        table_rows = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+        tables = {str(row[0]) for row in table_rows}
+        if 'transactions' not in tables or 'accounts' not in tables:
+            return
+        if 'alembic_version' not in tables:
+            conn.execute(
+                'CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)'
+            )
+        versions = conn.execute('SELECT version_num FROM alembic_version').fetchall()
+        if versions:
+            return
+        conn.execute('DELETE FROM alembic_version')
+        conn.execute(
+            'INSERT INTO alembic_version (version_num) VALUES (?)',
+            (_INITIAL_REVISION,),
+        )
+        conn.commit()
+        logger.warning('已修复空 Alembic 版本表，标记为初始版本')
+    finally:
+        conn.close()

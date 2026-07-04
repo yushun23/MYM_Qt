@@ -10,6 +10,7 @@ from mym2.services.backup_service import BackupService
 from mym2.services.balance_service import BalanceService
 from mym2.services.budget_service import BudgetService
 from mym2.services.category_service import CategoryService
+from mym2.services.diagnostics_service import DiagnosticsService
 from mym2.services.ledger_service import LedgerService
 from mym2.services.receivable_service import ReceivableService
 from mym2.services.report_service import ReportService
@@ -23,6 +24,7 @@ __all__ = [
     "BackupService",
     "BalanceService",
     "CategoryService",
+    "DiagnosticsService",
     "LedgerService",
     "ReportService",
     "BudgetService",

@@ -3,10 +3,12 @@
 提供应用级日志设置和未捕获异常处理器。
 """
 
+import json
 import logging
 import re
 import sys
 import traceback
+from datetime import UTC, datetime
 from pathlib import Path
 
 _logger: logging.Logger | None = None
@@ -34,6 +36,23 @@ class RedactingFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         return redact_text(super().format(record))
+
+
+class StructuredJsonFormatter(logging.Formatter):
+    """JSON Lines 结构化日志格式器，输出前执行脱敏。"""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            'ts': datetime.fromtimestamp(record.created, UTC).isoformat(),
+            'level': record.levelname,
+            'logger': record.name,
+            'message': record.getMessage(),
+        }
+        if record.exc_info:
+            payload['exception'] = self.formatException(record.exc_info)
+        return redact_text(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        )
 
 
 def get_logger(name: str = 'mym2') -> logging.Logger:
@@ -78,6 +97,12 @@ def setup_logging(logs_dir: Path, *, level: int = logging.INFO) -> logging.Logge
     file_handler.setFormatter(fmt)
     root.addHandler(file_handler)
 
+    # 结构化 JSONL 日志，供诊断包和后续排障使用。
+    json_handler = logging.FileHandler(logs_dir / 'mym2.jsonl', encoding='utf-8')
+    json_handler.setLevel(level)
+    json_handler.setFormatter(StructuredJsonFormatter())
+    root.addHandler(json_handler)
+
     # 控制台 handler（仅 WARNING 及以上）
     console = logging.StreamHandler(sys.stderr)
     console.setLevel(logging.WARNING)
@@ -100,6 +125,20 @@ def install_excepthook(logger: logging.Logger) -> None:
             return
         tb_text = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
         logger.critical('未捕获异常:\n%s', tb_text)
+        try:
+            from PySide6.QtWidgets import QApplication, QMessageBox
+
+            if QApplication.instance() is not None:
+                QMessageBox.critical(
+                    None,
+                    'MYM2 发生异常',
+                    (
+                        '程序遇到未处理异常，详细信息已写入日志。\n\n'
+                        f'{redact_text(str(exc_value))}'
+                    ),
+                )
+        except Exception:
+            logger.exception('显示全局异常对话框失败')
         sys.__excepthook__(exc_type, exc_value, exc_tb)
 
     sys.excepthook = _hook

@@ -24,6 +24,7 @@ class Transaction(Base, UUIDMixin, TimestampMixin):
         Index('ix_trans_out_date', 'account_out_id', 'transaction_date'),
         Index('ix_trans_in_date', 'account_in_id', 'transaction_date'),
         Index('ix_trans_cat_date', 'category_id', 'transaction_date'),
+        Index('ix_trans_type_date', 'type', 'transaction_date'),
     )
 
     transaction_date: Mapped[str] = mapped_column(

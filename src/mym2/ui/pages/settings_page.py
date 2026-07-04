@@ -23,10 +23,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from mym2.core.paths import get_backups_dir, get_db_path
+from mym2.core.paths import get_backups_dir, get_db_path, get_logs_dir
 from mym2.db.session import get_session
 from mym2.services.backup_service import RESTORE_CONFIRMATION, BackupService
+from mym2.services.diagnostics_service import DiagnosticsOptions, DiagnosticsService
 from mym2.services.settings_service import SettingsService
+from mym2.ui.theme import apply_theme
 
 
 class SettingsPage(QWidget):
@@ -38,6 +40,7 @@ class SettingsPage(QWidget):
         super().__init__(parent)
         self._settings = SettingsService()
         self._backup = BackupService()
+        self._diagnostics = DiagnosticsService()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -49,6 +52,7 @@ class SettingsPage(QWidget):
 
         layout.addWidget(self._build_preferences_group())
         layout.addWidget(self._build_backup_group())
+        layout.addWidget(self._build_diagnostics_group())
         layout.addWidget(self._build_ai_group())
         layout.addWidget(self._build_archive_card())
         layout.addStretch()
@@ -83,6 +87,21 @@ class SettingsPage(QWidget):
         save_btn = QPushButton('保存偏好')
         save_btn.clicked.connect(self._save_settings)
         form.addRow('', save_btn)
+        return group
+
+    def _build_diagnostics_group(self) -> QGroupBox:
+        group = QGroupBox('诊断')
+        form = QFormLayout(group)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        self._diag_include_db = QCheckBox('包含数据库副本')
+        self._diag_include_txs = QCheckBox('包含完整流水摘要')
+        form.addRow('', self._diag_include_db)
+        form.addRow('', self._diag_include_txs)
+
+        export_btn = QPushButton('导出诊断包')
+        export_btn.clicked.connect(self._export_diagnostics)
+        form.addRow('', export_btn)
         return group
 
     def _build_backup_group(self) -> QGroupBox:
@@ -210,6 +229,7 @@ class SettingsPage(QWidget):
                 'ai_service_url': self._ai_url.text().strip(),
             })
             session.commit()
+            apply_theme(self._theme_combo.currentText())
             QMessageBox.information(self, '设置', '已保存')
         except Exception as exc:
             QMessageBox.warning(self, '设置', f'保存失败：{exc}')
@@ -261,3 +281,35 @@ class SettingsPage(QWidget):
             QMessageBox.information(self, '恢复完成', '数据库已恢复，请重启应用。')
         except Exception as exc:
             QMessageBox.warning(self, '恢复失败', str(exc))
+
+    def _export_diagnostics(self) -> None:
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            '导出诊断包',
+            'mym2_diagnostics.zip',
+            'ZIP 文件 (*.zip)',
+        )
+        if not filename:
+            return
+        try:
+            session = get_session()
+            try:
+                result = self._diagnostics.export_package(
+                    session,
+                    destination=filename,
+                    logs_dir=get_logs_dir(),
+                    db_path=get_db_path(),
+                    options=DiagnosticsOptions(
+                        include_database=self._diag_include_db.isChecked(),
+                        include_full_transactions=self._diag_include_txs.isChecked(),
+                    ),
+                )
+            finally:
+                session.close()
+            QMessageBox.information(
+                self,
+                '诊断包已导出',
+                f'文件：{result.path}\n包含：{len(result.included)} 项',
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, '诊断包导出失败', str(exc))

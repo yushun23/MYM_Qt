@@ -23,7 +23,7 @@
 | 12 | 报表、打印与导出 | ✅ 完成 | 2026-07-04 | 待提交 |
 | 13 | 设置、备份、恢复与安全 | ✅ 完成 | 2026-07-04 | 本提交 |
 | 14 | 可选 AI 助手（默认关闭/只读） | ✅ 完成 | 2026-07-04 | 本提交 |
-| 15 | 图表完善 | ⏳ 待开始 | — | — |
+| 15 | 全量测试、异常恢复与性能整理 | ✅ 完成 | 2026-07-05 | 本提交 |
 | 16 | 测试覆盖 | ⏳ 待开始 | — | — |
 | 17 | 发布准备 | ⏳ 待开始 | — | — |
 
@@ -227,6 +227,64 @@
 | 日期 | 步骤 | 变更说明 |
 |------|------|----------|
 | 2026-07-04 | 12 | 报表、打印与导出 — 统一 ReportService + 报表中心 + CSV/Excel/PDF + 7 个验收测试 |
+
+---
+
+## 第 15 步完成详情
+
+### 新增/修改文件
+
+**数据库与迁移：**
+| 文件 | 说明 |
+|------|------|
+| `alembic/env.py` | Alembic 在线迁移使用事务提交，确保 `alembic_version` 与新增索引持久化 |
+| `alembic/versions/b7a9f0d2c481_02_transaction_type_date_index.py` | 新增 `transactions(type, transaction_date)` 索引 |
+| `src/mym2/db/migrate.py` | 修复早期已建初始表但 `alembic_version` 为空的 SQLite 库 |
+| `src/mym2/db/models/transaction.py` | 模型声明新增类型+日期索引 |
+
+**质量、异常与诊断：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/core/logging.py` | 增加结构化 JSONL 日志、全局异常对话框、异常信息脱敏 |
+| `src/mym2/services/diagnostics_service.py` | 诊断包导出；默认不含数据库、秘密和完整流水，显式选择后才包含 |
+| `src/mym2/services/__init__.py` | 导出 DiagnosticsService |
+
+**UI 与后台任务：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/ui/theme.py` | 应用主题切换入口 |
+| `src/mym2/bootstrap.py` | 启动时应用已保存主题 |
+| `src/mym2/ui/workers.py` | QThread worker：导出流水/报表时只传 DTO，worker 内独立创建/关闭 Session |
+| `src/mym2/ui/pages/transactions_page.py` | 流水导出改为后台 worker；账户流水明细查询改为 join，避免关键 N+1 |
+| `src/mym2/ui/pages/reports_page.py` | CSV/Excel/PDF 导出改为后台 worker |
+| `src/mym2/ui/pages/settings_page.py` | 保存主题后立即应用；新增诊断包导出入口 |
+| `src/mym2/repositories/transaction_repo.py` | 增加 `count_filtered()`，列表分页与导出共享筛选口径 |
+
+**测试与基准：**
+| 文件 | 说明 |
+|------|------|
+| `tests/test_step15_quality_performance.py` | 新增第 15 步集成测试：脱敏迁移、主题切换、离线图表、余额重建、备份恢复、异常 rollback、重复导入、worker Session、索引与 1 万笔基准 |
+| `scripts/perf_10000_transactions.py` | 10,000 笔合成流水性能基准，不使用真实个人数据 |
+
+### 验收结果
+
+- ✅ `.venv/bin/ruff check .` — All checks passed
+- ✅ `.venv/bin/python -m pytest` — **442 passed**
+- ✅ `PYTHONPATH=src .venv/bin/python scripts/perf_10000_transactions.py`
+  - 10,000 笔合成流水
+  - 启动：0.442s
+  - 筛选：0.0055s
+  - 月度报表：0.0142s
+  - 流水页刷新：0.0040s
+- ✅ worker 只传 DTO，后台线程独立创建/关闭 DB Session，不触碰 Qt 控件
+- ✅ 诊断包默认不含数据库、秘密和完整流水
+- ✅ 图表 HTML 仅加载本地 `resources/vendor/echarts.min.js`，无 CDN
+
+### 变更记录更新
+
+| 日期 | 步骤 | 变更说明 |
+|------|------|----------|
+| 2026-07-05 | 15 | 全量测试、异常恢复与性能整理 — 结构化日志/异常对话框/诊断包、后台 worker、分页索引、迁移版本修复、1 万笔合成基准与集成测试 |
 
 ---
 
