@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import sqlite3
 import uuid
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -38,6 +37,7 @@ from mym2.importers.legacy_mym.validators import (
     map_account_type,
     map_transaction_type,
 )
+from mym2.services.backup_service import BackupMetadata, BackupService
 
 logger = logging.getLogger('mym2.importers.legacy_mym.executor')
 
@@ -59,6 +59,7 @@ class MigrationExecutor:
         self._plan: MigrationPlan | None = None
         self._import_run_id: str = ''
         self._legacy_id_maps: list[tuple[str, str, str, str]] = []
+        self._backup_metadata: BackupMetadata | None = None
         self._stats = {
             'accounts_imported': 0, 'categories_imported': 0,
             'transactions_imported': 0, 'budget_periods_imported': 0,
@@ -82,7 +83,8 @@ class MigrationExecutor:
 
         backup_path: Path | None = None
         if backup and self._target_db_path.exists():
-            backup_path = self._backup_target_db()
+            self._backup_metadata = self._backup_target_db()
+            backup_path = self._target_db_path.parent / 'backups' / self._backup_metadata.filename
 
         upgrade_to_head(self._target_db_path)
         engine = create_mym2_engine(self._target_db_path)
@@ -146,18 +148,16 @@ class MigrationExecutor:
         finally:
             engine.dispose()
 
-    def _backup_target_db(self) -> Path:
+    def _backup_target_db(self) -> BackupMetadata:
         backup_dir = self._target_db_path.parent / 'backups'
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now(UTC).replace(tzinfo=None).strftime('%Y%m%d_%H%M%S')
-        backup_path = backup_dir / f'mym2_backup_{ts}.db'
-        src = sqlite3.connect(str(self._target_db_path))
-        dst = sqlite3.connect(str(backup_path))
-        src.backup(dst)
-        src.close()
-        dst.close()
-        logger.info('目标数据库已备份到: %s', backup_path)
-        return backup_path
+        metadata = BackupService().create_backup(
+            self._target_db_path,
+            backup_dir,
+            reason='before_migration',
+            retention_count=10,
+        )
+        logger.info('目标数据库已创建迁移前备份')
+        return metadata
 
     def _read_legacy_data(self, reader: SourceReader) -> dict[str, list[dict]]:
         data: dict[str, list[dict]] = {}
@@ -646,6 +646,12 @@ class MigrationExecutor:
             'source_hash': self._source_hash,
             'target_db': str(self._target_db_path),
             'backup_path': str(backup_path) if backup_path else None,
+            'backup_sha256': (
+                self._backup_metadata.sha256 if self._backup_metadata else None
+            ),
+            'backup_created_at': (
+                self._backup_metadata.created_at if self._backup_metadata else None
+            ),
             'stock_strategy': self._stock_strategy,
             'import_run_id': self._import_run_id,
             'stats': dict(self._stats),

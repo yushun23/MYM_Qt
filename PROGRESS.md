@@ -21,12 +21,11 @@
 | 10 | 预算模块 | ✅ 完成 | 2026-07-04 | 待提交 |
 | 11 | 应收管理 | ✅ 完成 | 2026-07-04 | 待提交 |
 | 12 | 报表、打印与导出 | ✅ 完成 | 2026-07-04 | 待提交 |
-| 13 | 备份恢复 | ⏳ 待开始 | — | — |
-| 14 | 数据迁移器 | ⏳ 待开始 | — | — |
+| 13 | 设置、备份、恢复与安全 | ✅ 完成 | 2026-07-04 | 本提交 |
+| 14 | 可选 AI 助手（默认关闭/只读） | ✅ 完成 | 2026-07-04 | 本提交 |
 | 15 | 图表完善 | ⏳ 待开始 | — | — |
 | 16 | 测试覆盖 | ⏳ 待开始 | — | — |
-| 17 | AI 助手（可选） | ⏳ 待开始 | — | — |
-| 18 | 发布准备 | ⏳ 待开始 | — | — |
+| 17 | 发布准备 | ⏳ 待开始 | — | — |
 
 ---
 
@@ -231,6 +230,71 @@
 
 ---
 
+## 第 13 步完成详情
+
+### 新增/修改文件
+
+**服务层：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/services/settings_service.py` | SettingsService：仅允许主题、语言、字号、导出目录、备份策略、AI 开关/模型/URL 等非秘密偏好写入 `app_settings` |
+| `src/mym2/services/backup_service.py` | BackupService：SQLite backup API、SHA-256、manifest、保留策略、恢复确认、关闭 Session、恢复后要求重启 |
+| `src/mym2/services/__init__.py` | 导出设置、备份与 AI 服务 |
+
+**安全与迁移：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/core/logging.py` | 日志默认脱敏路径、密钥、密码、token；初始化时恢复 logger 可用状态 |
+| `src/mym2/importers/legacy_mym/executor.py` | 迁移前备份改为复用 BackupService，并在报告中返回备份 SHA-256/时间 |
+
+**UI：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/ui/main_window.py` | 窗口位置/尺寸使用 QSettings 保存 |
+| `src/mym2/ui/pages/settings_page.py` | 设置页：非秘密偏好、备份策略、手动备份、显式确认恢复、AI 非秘密配置 |
+
+**测试：**
+| 文件 | 说明 |
+|------|------|
+| `tests/test_data_protection.py` | 设置白名单、备份验证/恢复/保留策略、恢复显式确认、日志脱敏、AI 验收测试 |
+| `tests/test_legacy_audit.py` | 敏感测试夹具占位值脱敏 |
+| `tests/test_migration_dryrun.py` | 敏感测试夹具占位值脱敏 |
+| `tests/test_migration_executor.py` | 敏感测试夹具占位值脱敏；迁移前备份继续通过 |
+
+### 验收结果
+
+- ✅ 秘密扫描 — Git 跟踪文件中未命中疑似 API key / password hash / proxy password 值
+- ✅ 备份恢复测试 — 2 passed
+- ✅ `python -m pytest` — **429 passed**
+- ✅ `ruff check .` — All checks passed
+- ✅ 新增数据库迁移版本：无
+- ✅ 旧 `.mym` 迁移测试确认源文件 hash 不变
+
+---
+
+## 第 14 步完成详情
+
+### 功能实现
+
+- AI 默认关闭，`ai_enabled=false` 默认来自 SettingsService，不自动启用。
+- API key 只通过系统 keyring；keyring 缺失时仅保存于当前 Python 会话内存，不写入 `app_settings`。
+- AI 上下文构建必须用户确认；只接受调用方传入的已筛选数据，不自动上传全量流水、归档、聊天或附件。
+- 结构化草稿包含账户、分类、日期、金额、备注与预计影响；拒绝确认时数据库不变。
+- 用户确认后才调用 `LedgerService.create_transaction(... source="ai")` 写账，并产生审计事件与余额重算。
+- 不实现任何证券/股票 AI 功能。
+
+### 验收结果
+
+- ✅ keyring 缺失不持久化密钥
+- ✅ 拒绝确认数据库不变
+- ✅ 确认写入仅通过 LedgerService，并产生审计事件
+- ✅ 最小化上下文测试通过，默认不包含账户名与备注
+- ✅ `python -m pytest` — **429 passed**
+- ✅ `ruff check .` — All checks passed
+- ✅ 新增数据库迁移版本：无
+
+---
+
 ## 变更记录
 
 | 日期 | 步骤 | 变更说明 |
@@ -239,6 +303,8 @@
 | 2026-07-04 | 01 | 可启动 GUI 空壳 |
 | 2026-07-04 | 02 | SQLAlchemy 2.0 + Alembic 数据库基座 — 10 表 + 47 测试 |
 | 2026-07-04 | 12 | 报表、打印与导出 — 统一 ReportService + 报表中心 + CSV/Excel/PDF |
+| 2026-07-04 | 13 | 设置、备份、恢复与安全 — 非秘密偏好、SQLite backup API、SHA-256/manifest、日志脱敏 |
+| 2026-07-04 | 14 | 可选 AI 助手 — 默认关闭/只读、keyring 凭据、结构化草稿、确认后 LedgerService 写账 |
 
 ---
 

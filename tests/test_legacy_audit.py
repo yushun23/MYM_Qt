@@ -116,10 +116,10 @@ def _build_test_mym(db_path: Path) -> None:
         [
             ('theme', 'dark'),
             ('language', 'zh_CN'),
-            ('api_key', 'sk-test-placeholder-not-real'),
+            ('api_key', 'blocked-value'),
             ('proxy_password', 'placeholder'),
-            ('password_hash', '$2b$12$placeholder'),
-            ('openai_api_key', 'sk-test-not-real'),
+            ('password_hash', 'blocked-value'),
+            ('openai_api_key', 'blocked-value'),
             ('proxy_mode', 'http'),
             ('schema_version', '5'),
         ],

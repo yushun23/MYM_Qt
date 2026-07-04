@@ -1,6 +1,6 @@
 """MYM2 主窗口 — QMainWindow + 左侧导航 + QStackedWidget。"""
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -71,6 +71,7 @@ class MainWindow(QMainWindow):
         self._stack = QStackedWidget()
 
         self._setup_ui()
+        self._restore_window_settings()
         self._navigate_to('dashboard')
 
     def _setup_ui(self) -> None:
@@ -142,6 +143,23 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentWidget(page)
         for i, (_, k, _) in enumerate(NAV_ITEMS):
             self._nav_buttons[i].setChecked(k == key)
+
+    def closeEvent(self, event) -> None:
+        """保存窗口位置与尺寸到 QSettings。"""
+        settings = QSettings()
+        settings.setValue('main_window/geometry', self.saveGeometry())
+        settings.setValue('main_window/state', self.saveState())
+        super().closeEvent(event)
+
+    def _restore_window_settings(self) -> None:
+        """从 QSettings 恢复窗口位置与尺寸。"""
+        settings = QSettings()
+        geometry = settings.value('main_window/geometry')
+        state = settings.value('main_window/state')
+        if geometry is not None:
+            self.restoreGeometry(geometry)
+        if state is not None:
+            self.restoreState(state)
 
     @property
     def current_page_key(self) -> str:

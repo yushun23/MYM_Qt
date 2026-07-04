@@ -95,8 +95,8 @@ def _build_executor_test_mym(db_path: Path) -> None:
         [
             ('theme', 'dark'),
             ('language', 'zh_CN'),
-            ('api_key', 'sk-test-not-real'),
-            ('password_hash', '$2b$12$hash'),
+            ('api_key', 'blocked-value'),
+            ('password_hash', 'blocked-value'),
         ],
     )
 

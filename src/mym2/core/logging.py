@@ -4,11 +4,36 @@
 """
 
 import logging
+import re
 import sys
 import traceback
 from pathlib import Path
 
 _logger: logging.Logger | None = None
+
+_SECRET_ASSIGNMENT_RE = re.compile(
+    r'(?i)\b(api[_-]?key|password_hash|proxy_password|password|secret|token|key)'
+    r'\s*([=:])\s*([^\s,;]+)'
+)
+_OPENAI_STYLE_KEY_RE = re.compile(r'\bsk-[A-Za-z0-9_-]{6,}\b')
+_POSIX_PATH_RE = re.compile(r'(?<!\w)/(?:[^/\s:]+/)+[^/\s,)]+')
+_WINDOWS_PATH_RE = re.compile(r'\b[A-Za-z]:\\(?:[^\\\s:]+\\)+[^\\\s,)]+')
+
+
+def redact_text(text: str) -> str:
+    """脱敏日志文本中的路径、密钥与密码类字段。"""
+    text = _SECRET_ASSIGNMENT_RE.sub(r'\1\2<redacted>', text)
+    text = _OPENAI_STYLE_KEY_RE.sub('sk-<redacted>', text)
+    text = _POSIX_PATH_RE.sub('<path>', text)
+    text = _WINDOWS_PATH_RE.sub('<path>', text)
+    return text
+
+
+class RedactingFormatter(logging.Formatter):
+    """最终输出前脱敏日志文本。"""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return redact_text(super().format(record))
 
 
 def get_logger(name: str = 'mym2') -> logging.Logger:
@@ -36,12 +61,14 @@ def setup_logging(logs_dir: Path, *, level: int = logging.INFO) -> logging.Logge
 
     logs_dir.mkdir(parents=True, exist_ok=True)
 
-    fmt = logging.Formatter(
+    fmt = RedactingFormatter(
         '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
     )
 
     root = logging.getLogger('mym2')
+    root.disabled = False
+    root.propagate = False
     root.setLevel(level)
     root.handlers.clear()
 
