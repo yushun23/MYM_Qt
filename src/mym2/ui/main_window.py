@@ -14,7 +14,10 @@ from PySide6.QtWidgets import (
 
 from mym2.ui.pages.accounts_page import AccountsPage
 from mym2.ui.pages.budget_page import BudgetPage
+from mym2.ui.pages.categories_page import CategoriesPage
 from mym2.ui.pages.dashboard_page import DashboardPage
+from mym2.ui.pages.history_archive_page import HistoryArchivePage
+from mym2.ui.pages.import_wizard import ImportWizard
 from mym2.ui.pages.receivables_page import ReceivablesPage
 from mym2.ui.pages.reports_page import ReportsPage
 from mym2.ui.pages.settings_page import SettingsPage
@@ -24,10 +27,13 @@ NAV_ITEMS: list[tuple[str, str, type[QWidget]]] = [
     ('仪表盘', 'dashboard', DashboardPage),
     ('流水', 'transactions', TransactionsPage),
     ('账户', 'accounts', AccountsPage),
+    ('分类', 'categories', CategoriesPage),
     ('应收', 'receivables', ReceivablesPage),
     ('预算', 'budget', BudgetPage),
     ('报表', 'reports', ReportsPage),
+    ('导入', 'import_wizard', ImportWizard),
     ('设置', 'settings', SettingsPage),
+    ('归档', 'history_archive', HistoryArchivePage),
 ]
 
 NAV_STYLE = """
@@ -119,6 +125,11 @@ class MainWindow(QMainWindow):
             page = page_cls()
             self._pages[key] = page
             self._stack.addWidget(page)
+
+        # 连接子页面导航信号（如账户页/设置页跳转到归档页）
+        for _key, page in self._pages.items():
+            if hasattr(page, 'navigate_to'):
+                page.navigate_to.connect(self._navigate_to)
 
         root_layout.addWidget(nav_panel)
         root_layout.addWidget(self._stack)

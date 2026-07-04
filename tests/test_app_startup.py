@@ -41,11 +41,11 @@ def test_bootstrap_reuses_existing_qapp(qapp: QApplication) -> None:
         window.close()
 
 
-def test_main_window_has_seven_nav_items(qapp: QApplication) -> None:
+def test_main_window_has_eight_nav_items(qapp: QApplication) -> None:
     """主窗口导航栏有 7 个占位页面，不含股票相关导航。"""
     window = bootstrap(data_dir=Path('/tmp/mym2_test_nav'), auto_migrate=False)
     try:
-        assert window.nav_count == 7, f'期望 7 个导航项，实际 {window.nav_count}'
+        assert window.nav_count == 10, f'期望 10 个导航项，实际 {window.nav_count}'
 
         from mym2.ui.main_window import NAV_ITEMS
         nav_labels = [label for label, _, _ in NAV_ITEMS]
@@ -55,7 +55,7 @@ def test_main_window_has_seven_nav_items(qapp: QApplication) -> None:
             for word in banned:
                 assert word not in label.lower(), f'导航包含禁止词: {label}'
 
-        expected = ['仪表盘', '流水', '账户', '应收', '预算', '报表', '设置']
+        expected = ['仪表盘', '流水', '账户', '分类', '应收', '预算', '报表', '设置', '归档']
         for exp in expected:
             assert any(exp in label for label in nav_labels), f'缺失导航: {exp}'
     finally:
