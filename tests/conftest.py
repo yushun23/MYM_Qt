@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from mym2.db.engine import create_mym2_engine
+from mym2.db.ensure_schema import ensure_budget_columns
 from mym2.db.migrate import upgrade_to_head
 from mym2.db.session import init_session_factory, remove_session, reset_session_factory
 
@@ -34,6 +35,7 @@ def session() -> Session:
         engine = create_mym2_engine(str(db_path))
         upgrade_to_head(db_path)
 
+        ensure_budget_columns(engine)
         factory = init_session_factory(engine)
         s = factory()
         try:

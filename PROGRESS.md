@@ -18,7 +18,7 @@
 | 07 | 账户、分类与历史归档 | ✅ 完成 | 2026-07-04 | 待提交 |
 | 08 | 日常流水（新增/筛选/编辑/删除/导出） | ✅ 完成 | 2026-07-04 | 待提交 |
 | 09 | 离线 ECharts 与仪表盘 | ✅ 完成 | 2026-07-04 | 待提交 |
-| 10 | 设置页面 | ⏳ 待开始 | — | — |
+| 10 | 预算模块 | ✅ 完成 | 2026-07-04 | 待提交 |
 | 11 | 导入/导出 | ⏳ 待开始 | — | — |
 | 12 | 备份恢复 | ⏳ 待开始 | — | — |
 | 13 | 数据迁移器 | ⏳ 待开始 | — | — |
@@ -617,7 +617,103 @@ python -m mym2.importers.legacy_mym.audit legacy_input/my_money.mym --out report
 
 **修改的文件：**
 | 文件 | 说明 |
+|------|---
+---
+
+## 第 10 步完成详情：预算模块
+
+### 新增/修改文件
+
+**Schema 扩展：**
+| 文件 | 说明 |
 |------|------|
+| `src/mym2/db/ensure_schema.py` | Schema 确保工具 — 幂等添加 budget 扩展列 |
+
+**模型层（修改）：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/db/models/budget.py` | BudgetPeriod 添加 is_closed；BudgetLine 添加 type/group/threshold_minor/sort_order |
+
+**DTO 层（修改）：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/services/dto.py` | 新增 BudgetLineDTO、CreateBudgetPeriodDTO、CopyBudgetDTO、UpdateBudgetLineDTO |
+
+**仓储层（新增）：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/repositories/budget_repo.py` | BudgetRepository：期间 CRUD、明细查询、实际发生额查询（排除 balance_adjustment/historical_investment_settlement/receivable）|
+
+**服务层（新增）：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/services/budget_service.py` | BudgetService：创建期间、复制上月、添加/编辑/删除明细行、关闭/重新打开月份 |
+
+**UI 页面（修改）：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/ui/pages/budget_page.py` | 完整预算页面：月度切换、新建/复制、明细表（分类/分组/计划/实际/剩余/进度/超支状态）、CRUD 对话框、关闭/重新打开 |
+
+**修改的已有文件：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/bootstrap.py` | 集成 `ensure_budget_columns`；修复 session factory 初始化 |
+| `src/mym2/repositories/__init__.py` | 导出 BudgetRepository |
+| `src/mym2/services/__init__.py` | 导出 BudgetService |
+| `src/mym2/importers/legacy_mym/executor.py` | 迁移执行后调用 `ensure_budget_columns` |
+| `tests/conftest.py` | 测试数据库创建后调用 `ensure_budget_columns` |
+
+### 功能实现
+
+**预算服务：**
+- 按月创建预算期间及明细行（支出/收入分类绑定）
+- 复制上月预算（查找最近已有期间，复制所有明细行）
+- 添加/编辑/删除预算明细行
+- 关闭/重新打开预算期间（关闭后禁止编辑）
+- 所有写操作产生 AuditEvent
+
+**预算仓储：**
+- 按年月查询期间、列出最近 24 个期间
+- 构建 BudgetPeriodView（含 BudgetLineWithActual：计划/实际/剩余/进度/超支状态）
+- 实际发生额从 transactions 实时查询，排除：
+  - `balance_adjustment`（余额调节）
+  - `historical_investment_settlement`（历史投资结算）
+  - `receivable_advance` / `receivable_repayment`（应收垫付/还款）
+  - `transfer`（转账）
+- 不维护第二套"已用金额"事实源
+
+**预算页面：**
+- 月度切换导航（上月/下月按钮 + 年月标签）
+- 新建预算对话框（支出/收入双选项卡，按分类填写金额）
+- 复制上月按钮
+- 预算明细表：分类、类型、分组、计划金额、实际金额、剩余、进度百分比、超支/正常/已达状态
+- 汇总行：计划总计、实际总计、剩余、项数
+- 超支行/已达行高亮（红色/绿色背景）
+- 添加/编辑/删除明细行对话框
+- 关闭月份（确认后禁止编辑）/ 重新打开
+- 暂不实现 AI 预算建议（留有明确扩展接口）
+
+**安全规则遵守：**
+- 所有预算写操作通过 BudgetService
+- UI 层不直写 budget_periods / budget_lines
+- 关闭月份拒绝编辑/删除
+- 实际发生额不维护冗余事实源
+
+### 验收结果
+- ✅ `ruff check .` — All checks passed
+- ✅ `python -m pytest` — **393 passed**（所有已有测试通过）
+- ✅ 预算实际额从 transactions 实时查询（排除调节/结算/应收类型）
+- ✅ 关闭月不可编辑（服务层 + UI 层双重保护）
+- ✅ 复制预算不重复（检查目标期间是否已存在）
+- ✅ 历史快照/估值调整不污染日常预算
+
+### 变更记录更新
+
+| 日期 | 步骤 | 变更说明 |
+|------|------|----------|
+| 2026-07-04 | 10 | 预算模块 — BudgetService + BudgetRepository + BudgetPage + schema 扩展 |
+
+---|
 | `src/mym2/services/__init__.py` | 导出 ReportService |
 | `pyproject.toml` | 添加 mym2.charts、mym2.ui.widgets 包 |
 

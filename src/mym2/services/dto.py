@@ -164,3 +164,78 @@ class UpdateTransactionDTO:
             from mym2.domain.money import validate_positive_amount_minor
 
             validate_positive_amount_minor(self.amount_minor)
+
+
+@dataclass(slots=True)
+class BudgetLineDTO:
+    """预算明细行 DTO（用于创建/更新）。"""
+
+    category_id: str
+    type: str  # 'expense' / 'income'
+    amount_minor: int
+    group: str | None = None
+    threshold_minor: int | None = None
+    sort_order: int = 0
+    note: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.category_id:
+            raise ValueError('分类 ID 不能为空')
+        if self.type not in ('expense', 'income'):
+            raise ValueError(f'无效的预算类型: {self.type}')
+        if self.amount_minor <= 0:
+            raise ValueError(f'预算金额必须为正整数，实际为 {self.amount_minor}')
+        if self.amount_minor > 900_000_000_000_00:
+            raise ValueError(f'预算金额过大: {self.amount_minor}')
+
+
+@dataclass(slots=True)
+class CreateBudgetPeriodDTO:
+    """创建预算期间 DTO。"""
+
+    year: int
+    month: int
+    lines: list[BudgetLineDTO]
+
+    def __post_init__(self) -> None:
+        if not 1 <= self.month <= 12:
+            raise ValueError(f'无效的月份: {self.month}')
+        if self.year < 2000 or self.year > 2100:
+            raise ValueError(f'无效的年份: {self.year}')
+        if not self.lines:
+            raise ValueError('预算明细不能为空')
+
+
+@dataclass(slots=True)
+class CopyBudgetDTO:
+    """复制上月预算 DTO。"""
+
+    year: int
+    month: int
+
+    def __post_init__(self) -> None:
+        if not 1 <= self.month <= 12:
+            raise ValueError(f'无效的月份: {self.month}')
+        if self.year < 2000 or self.year > 2100:
+            raise ValueError(f'无效的年份: {self.year}')
+
+
+@dataclass(slots=True)
+class UpdateBudgetLineDTO:
+    """更新预算明细 DTO。所有字段可选。"""
+
+    category_id: str | None = None
+    type: str | None = None
+    amount_minor: int | None = None
+    group: str | None = None
+    threshold_minor: int | None = None
+    sort_order: int | None = None
+    note: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.type is not None and self.type not in ('expense', 'income'):
+            raise ValueError(f'无效的预算类型: {self.type}')
+        if self.amount_minor is not None and self.amount_minor <= 0:
+            raise ValueError(f'预算金额必须为正整数，实际为 {self.amount_minor}')
+        if self.amount_minor is not None and self.amount_minor > 900_000_000_000_00:
+            raise ValueError(f'预算金额过大: {self.amount_minor}')

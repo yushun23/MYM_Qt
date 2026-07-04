@@ -11,7 +11,10 @@ from PySide6.QtWidgets import QApplication
 
 from mym2.core.logging import install_excepthook, setup_logging
 from mym2.core.paths import get_db_path, get_logs_dir, set_data_dir
+from mym2.db.engine import create_mym2_engine
+from mym2.db.ensure_schema import ensure_budget_columns
 from mym2.db.migrate import upgrade_to_head
+from mym2.db.session import init_session_factory
 from mym2.ui.main_window import MainWindow
 
 GLOBAL_STYLE = """
@@ -62,10 +65,17 @@ def bootstrap(
     logger.info('MYM2 启动 — 版本 %s', '0.1.0')
 
     # 数据库迁移
+    db_path = get_db_path()
     if auto_migrate:
-        db_path = get_db_path()
         upgrade_to_head(db_path)
         logger.info('数据库路径: %s', db_path)
 
+    engine = create_mym2_engine(db_path)
+    init_session_factory(engine)
+
+    # 确保 budget 扩展列存在（幂等添加）
+    ensure_budget_columns(engine)
+
     window = MainWindow()
     return window
+
