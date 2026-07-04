@@ -17,7 +17,7 @@
 | 06 | 执行迁移、回滚、报告与导入向导 | ✅ 完成 | 2026-07-04 | 待提交 |
 | 07 | 账户、分类与历史归档 | ✅ 完成 | 2026-07-04 | 待提交 |
 | 08 | 日常流水（新增/筛选/编辑/删除/导出） | ✅ 完成 | 2026-07-04 | 待提交 |
-| 09 | 报表 | ⏳ 待开始 | — | — |
+| 09 | 离线 ECharts 与仪表盘 | ✅ 完成 | 2026-07-04 | 待提交 |
 | 10 | 设置页面 | ⏳ 待开始 | — | — |
 | 11 | 导入/导出 | ⏳ 待开始 | — | — |
 | 12 | 备份恢复 | ⏳ 待开始 | — | — |
@@ -575,3 +575,85 @@ python -m mym2.importers.legacy_mym.audit legacy_input/my_money.mym --out report
 | 日期 | 步骤 | 变更说明 |
 |------|------|----------|
 | 2026-07-04 | 08 | 日常流水 — 筛选/CRUD/导出/公式注入防护 + 48 测试 |
+
+---
+
+## 第 09 步完成详情：离线 ECharts 与仪表盘
+
+### 新增/修改文件
+
+**图表模块（新增）：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/charts/__init__.py` | charts 包 |
+| `src/mym2/charts/option_builders.py` | ECharts option JSON 构建器：资产负债饼图、月度收支柱状图、净资产趋势折线、分类支出饼图，支持深色/浅色主题 |
+| `src/mym2/charts/chart_html.py` | HTML 模板生成器：build_chart_html（完整HTML）、update_chart_js（增量更新），不含任何 CDN 引用 |
+
+**UI 组件（新增）：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/ui/widgets/__init__.py` | widgets 包 |
+| `src/mym2/ui/widgets/chart_web_view.py` | ChartWebView：QWebEngineView 封装，通过 setHtml(local_html, local_base_url) 加载本地 echarts.min.js；一个视图只初始化一次 ECharts 实例；刷新用 updateChart；resize 调用 myChart.resize() |
+
+**服务层（新增）：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/services/report_service.py` | ReportService：仪表盘数据聚合（资产/负债/净资产/应收/当月收支/预算概览/月度趋势/分类明细）；DashboardData + MonthlySnapshot 数据类 |
+
+**UI 页面（修改）：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/ui/pages/dashboard_page.py` | 完整仪表盘：6 个概览卡片（净资产/总资产/总负债/应收/本月收入/本月支出）；4 个图表（资产负债饼图、月度收支柱状图、净资产趋势折线、分类支出饼图）；最近 10 条流水表格 |
+
+**资源（新增）：**
+| 文件 | 说明 |
+|------|------|
+| `resources/vendor/echarts.min.js` | ECharts 5.6.0 本地副本（~1MB），离线授权使用 |
+
+**测试（新增）：**
+| 文件 | 说明 |
+|------|------|
+| `tests/test_dashboard_echarts.py` | 42 个测试：option_builders 结构/值/CDN-free、chart_html 模板/嵌入/CDN-free、ChartWebView 构造/信号/缓存更新、ReportService 数据聚合（资产/负债/净资产/收支/趋势/分类/预算）、仪表盘构造/控件/禁止词 |
+
+**修改的文件：**
+| 文件 | 说明 |
+|------|------|
+| `src/mym2/services/__init__.py` | 导出 ReportService |
+| `pyproject.toml` | 添加 mym2.charts、mym2.ui.widgets 包 |
+
+### 功能实现
+
+**图表组件：**
+- QWebEngineView + 本地 echarts.min.js（setHtml + base_url）
+- 生成的 HTML/JS 不含 http://、https://、CDN 域名
+- 一个视图只初始化一次 ECharts 实例
+- 刷新数据用 setOption + runJavaScript（不重新加载 HTML）
+- 窗口 resize 自动调用 chart.resize()
+- 深色主题：文字/轴/提示框可读（已验证）
+
+**仪表盘：**
+- 概览卡片：净资产、总资产、总负债、应收款、本月收入、本月支出
+- 图表：资产负债构成（双饼图）、月度收支（柱状图）、净资产趋势（面积折线图）、当月分类支出（饼图）
+- 最近 10 条流水明细
+- 投资历史资产快照计入资产总额但不展示股票名称、行情、价格走势或交易信息
+- 数据聚合通过 ReportService（只读）；口径与后续 ReportService 约定一致
+
+**安全规则遵守：**
+- 图表全部本地离线，无外网依赖
+- 无 CDN 引用（HTML/JS 静态检查通过）
+- 仪表盘不含股票/证券相关入口或展示词
+- 数据聚合只读，不直写数据库
+
+### 验收结果
+- ✅ `ruff check .` — All checks passed
+- ✅ `python -m pytest` — **393 passed**（+42 新增）
+- ✅ HTML/JS 静态检查：不含 http://、https://、CDN 域名
+- ✅ QWebEngineView setHtml + local_base_url 加载 echarts.min.js
+- ✅ 仪表盘口径与 ReportService 约定一致
+- ✅ 无外网依赖；投资快照不泄露股票信息
+
+### 变更记录更新
+
+| 日期 | 步骤 | 变更说明 |
+|------|------|----------|
+| 2026-07-04 | 09 | 离线 ECharts 与仪表盘 — ChartWebView + option_builders + ReportService + 42 测试 |
