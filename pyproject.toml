@@ -24,9 +24,11 @@ dev = [
     "ruff>=0.5",
 ]
 
+[project.scripts]
+mym2 = "mym2.app:main"
 [tool.setuptools]
 package-dir = { "" = "src" }
-packages = ["mym2"]
+packages = ["mym2", "mym2.core", "mym2.ui", "mym2.ui.pages"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

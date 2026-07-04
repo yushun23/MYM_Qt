@@ -3,10 +3,7 @@
 验证项目基线文件存在且包含关键约束条款。
 """
 
-import os
-import re
 from pathlib import Path
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
