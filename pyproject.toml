@@ -3,51 +3,48 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mym2"
+name = "mym"
 version = "0.1.0"
-description = "MYM2 — 个人记账软件（PySide6 + SQLAlchemy + SQLite）"
+description = "Manage Your Money - Local Desktop Accounting Software"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [{name = "MYM Team"}]
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+
 dependencies = [
-    "PySide6>=6.6,<7.0",
-    "SQLAlchemy>=2.0,<3.0",
-    "alembic>=1.13,<2.0",
-    "keyring>=25.0",
-    "pydantic>=2.5,<3.0",
-    "openpyxl>=3.1,<4.0",
+    "PySide6>=6.6.0",
+    "SQLAlchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "pydantic>=2.5.0",
+    "openpyxl>=3.1.0",
+    "pandas>=2.1.0",
+    "pyecharts>=2.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
-    "pytest-qt>=4.4",
-    "ruff>=0.5",
+    "pytest-qt>=4.4.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
 ]
 
 [project.scripts]
-mym2 = "mym2.app:main"
-[tool.setuptools]
-package-dir = { "" = "src" }
-packages = ["mym2", "mym2.core", "mym2.db", "mym2.db.models", "mym2.domain", "mym2.importers", "mym2.importers.legacy_mym", "mym2.charts", "mym2.repositories", "mym2.services", "mym2.ui", "mym2.ui.pages", "mym2.ui.widgets"]
+mym = "mym.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "-v --tb=short"
+pythonpath = ["src"]
+qt_api = "pyside6"
+asyncio_mode = "auto"
 
-[tool.ruff]
-target-version = "py311"
-line-length = 100
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
-
-[tool.ruff.lint.per-file-ignores]
-# Qt override methods must use camelCase
-"src/mym2/ui/**/*.py" = ["N802", "N806", "B008"]
-# Test fixtures can use camelCase for Qt
-"tests/test_ui_pages.py" = ["N802", "N806", "B008"]
-
-[tool.ruff.format]
-quote-style = "single"
-indent-style = "space"
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true

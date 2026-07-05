@@ -1,0 +1,11 @@
+{
+    "id": "receivable_csv_import",
+    "name": "Receivable CSV Importer",
+    "version": "1.0.0",
+    "description": "Import initial receivable cases from CSV files",
+    "author": "MYM Team",
+    "entry_point": "plugin.py",
+    "required_permissions": ["query_accounts", "query_categories", "import_transactions"],
+    "provides": ["receivable_import"],
+    "min_app_version": "0.1.0"
+}
