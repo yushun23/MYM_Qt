@@ -221,7 +221,7 @@ class MigrationWizard(QDialog):
         self._chk_budgets.setChecked(True)
         sections_layout.addWidget(self._chk_budgets)
 
-        self._chk_stocks = QCheckBox("股票/投资数据")
+        self._chk_stocks = QCheckBox("历史投资归档（只读快照）")
         self._chk_stocks.setChecked(True)
         sections_layout.addWidget(self._chk_stocks)
 

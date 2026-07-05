@@ -9,9 +9,7 @@ from mym.domain.entities.import_ import ImportIssue, ImportJob, LegacyIdMap
 from mym.domain.entities.investment import (
     InvestmentAccount,
     InvestmentCashFlow,
-    InvestmentSettlement,
     InvestmentTrade,
-    QuoteSnapshot,
     Security,
 )
 from mym.domain.entities.receivable import ReceivableCase, ReceivableEvent
@@ -31,10 +29,8 @@ __all__ = [
     "ImportJob",
     "InvestmentAccount",
     "InvestmentCashFlow",
-    "InvestmentSettlement",
     "InvestmentTrade",
     "LegacyIdMap",
-    "QuoteSnapshot",
     "ReceivableCase",
     "ReceivableEvent",
     "Security",

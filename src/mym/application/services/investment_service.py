@@ -11,17 +11,12 @@ from sqlalchemy.orm import Session
 from mym.domain.entities.investment import (
     InvestmentAccount,
     InvestmentCashFlow,
-    InvestmentSettlement,
     InvestmentTrade,
-    QuoteSnapshot,
-    Security,
 )
 from mym.domain.entities.audit import AuditLog
-from mym.domain.entities.import_ import ImportJob
 from mym.domain.enums import (
     AccountType,
     CashFlowType,
-    ImportStatus,
     InvestmentModuleStatus,
     TransactionSource,
 )
@@ -143,15 +138,6 @@ class InvestmentService:
         )
         return InvestmentOperationResult(success=True, entity_id=account_id)
 
-    # --- Rollback by ImportJob ---
-
-    def rollback_import(self, import_job_id: int) -> InvestmentOperationResult:
-        """Roll back all investment data imported by a specific ImportJob.
-
-        Deletes InvestmentTrades and InvestmentCashFlows by import_job_id.
-        Does NOT affect core accounting.
-        """
-        trades_deleted = self._repo.delete_trades_by_import(import_job_id)
         cfs_deleted = self._repo.delete_cash_flows_by_import(import_job_id)
 
         self._write_audit(
@@ -205,22 +191,6 @@ class InvestmentService:
             warnings=["投资数据已永久删除"],
         )
 
-    # --- Security ---
-
-    def ensure_security(
-        self, symbol: str, name: str, market: str = "CN",
-        security_type: str = "stock",
-    ) -> Security:
-        """Get or create a security record."""
-        sec = self._repo.find_security_by_symbol(symbol)
-        if not sec:
-            sec = Security(
-                symbol=symbol, name=name, market=market,
-                security_type=security_type,
-            )
-            self._repo.add_security(sec)
-            self._session.flush()
-        return sec
 
     # --- Audit ---
 

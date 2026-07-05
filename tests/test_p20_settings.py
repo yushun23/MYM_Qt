@@ -21,7 +21,6 @@ def config():
                 "theme/mode": "light",
                 "window/width": "1200",
                 "window/height": "800",
-                "modules/show_stock": "false",
                 "modules/plugins_enabled": "",
                 "export/default_dir": "",
                 "recent/ledgers": "",
@@ -71,7 +70,6 @@ class TestSettingsService:
         profile = svc.get_user_settings()
         assert profile.language == "zh_CN"
         assert profile.theme == "light"
-        assert not profile.show_stock
 
     def test_set_language_and_theme(self, config):
         svc = SettingsService(config)
@@ -80,12 +78,6 @@ class TestSettingsService:
         assert config.get("language/locale") == "en"
         assert config.get("theme/mode") == "dark"
 
-    def test_set_stock_visibility(self, config):
-        svc = SettingsService(config)
-        svc.set_stock_visibility(True)
-        assert config.get_bool("modules/show_stock") is True
-        svc.set_stock_visibility(False)
-        assert config.get_bool("modules/show_stock") is False
 
     def test_set_plugin_enabled(self, config):
         svc = SettingsService(config)

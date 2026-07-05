@@ -17,7 +17,6 @@ class PageKey(str, Enum):
     REPORTS = "reports"
     BUDGET = "budget"
     RECEIVABLE = "receivable"
-    STOCK = "stock"
     AI = "ai"
     SETTINGS = "settings"
 

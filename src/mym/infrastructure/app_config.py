@@ -13,7 +13,6 @@ _DEFAULTS = {
     "window/width": 1200,
     "window/height": 800,
     "window/maximized": False,
-    "modules/show_stock": False,
     "recent/ledgers": "",
     "export/default_dir": "",
 }

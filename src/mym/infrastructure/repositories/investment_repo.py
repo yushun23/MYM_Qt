@@ -3,15 +3,13 @@
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select, func, update
+from sqlalchemy import select, update, func
 from sqlalchemy.orm import Session
 
 from mym.domain.entities.investment import (
     InvestmentAccount,
     InvestmentCashFlow,
-    InvestmentSettlement,
     InvestmentTrade,
-    QuoteSnapshot,
     Security,
 )
 from mym.domain.enums import InvestmentModuleStatus
@@ -148,52 +146,3 @@ class InvestmentRepository:
         result = self._session.execute(stmt).scalar()
         return result if result is not None else Decimal("0")
 
-    # --- QuoteSnapshot ---
-
-    def get_latest_quote(self, security_id: int) -> QuoteSnapshot | None:
-        stmt = (
-            select(QuoteSnapshot)
-            .where(QuoteSnapshot.security_id == security_id)
-            .order_by(QuoteSnapshot.quote_date.desc())
-            .limit(1)
-        )
-        return self._session.execute(stmt).scalar_one_or_none()
-
-    def add_quote(self, quote: QuoteSnapshot) -> None:
-        self._session.add(quote)
-
-    # --- InvestmentSettlement ---
-
-    def get_settlement(
-        self, account_id: int, year: int, month: int
-    ) -> InvestmentSettlement | None:
-        stmt = select(InvestmentSettlement).where(
-            InvestmentSettlement.investment_account_id == account_id,
-            InvestmentSettlement.year == year,
-            InvestmentSettlement.month == month,
-            InvestmentSettlement.is_active == True,  # noqa: E712
-        )
-        return self._session.execute(stmt).scalar_one_or_none()
-
-    def list_settlements(
-        self, account_id: int | None = None
-    ) -> list[InvestmentSettlement]:
-        stmt = select(InvestmentSettlement)
-        if account_id:
-            stmt = stmt.where(
-                InvestmentSettlement.investment_account_id == account_id
-            )
-        stmt = stmt.order_by(
-            InvestmentSettlement.year.desc(), InvestmentSettlement.month.desc()
-        )
-        return list(self._session.execute(stmt).scalars().all())
-
-    def add_settlement(self, settlement: InvestmentSettlement) -> None:
-        self._session.add(settlement)
-
-    def deactivate_settlement(self, settlement_id: int) -> None:
-        self._session.execute(
-            update(InvestmentSettlement)
-            .where(InvestmentSettlement.id == settlement_id)
-            .values(is_active=False)
-        )

@@ -368,22 +368,6 @@ class SettingsPage(QWidget):
         content = QWidget()
         layout = QVBoxLayout(content)
 
-        # Stock module
-        stock_group = QGroupBox("股票/投资模块")
-        stock_layout = QVBoxLayout(stock_group)
-
-        stock_desc = QLabel(
-            "隐藏股票模块不会删除数据，仅从界面中移除。\n"
-            "永久删除投资数据请通过专门的撤销/删除功能操作。"
-        )
-        stock_desc.setWordWrap(True)
-        stock_layout.addWidget(stock_desc)
-
-        self._stock_visible_check = QCheckBox("显示股票模块")
-        stock_layout.addWidget(self._stock_visible_check)
-
-        layout.addWidget(stock_group)
-
         # Plugins
         plugin_group = QGroupBox("插件管理")
         plugin_layout = QVBoxLayout(plugin_group)
@@ -409,7 +393,6 @@ class SettingsPage(QWidget):
 
     def _save_modules(self) -> None:
         svc = SettingsService(self._config)
-        svc.set_stock_visibility(self._stock_visible_check.isChecked())
         AppEventBus.instance().module_visibility_changed.emit()
         QMessageBox.information(self, "提示", "模块设置已保存")
 
@@ -570,7 +553,6 @@ class SettingsPage(QWidget):
                     self._ai_provider_combo.setCurrentIndex(idx)
 
             # Modules
-            self._stock_visible_check.setChecked(profile.show_stock)
             if profile.plugins_enabled:
                 self._plugin_list.setPlainText(
                     "\n".join(profile.plugins_enabled)

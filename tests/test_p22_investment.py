@@ -222,13 +222,4 @@ class TestInvestmentService:
         session.flush()
         assert repo.get_account(result.entity_id) is None
 
-    def test_ensure_security(self, session):
-        svc = InvestmentService(session)
-        sec1 = svc.ensure_security("600519", "贵州茅台")
-        session.flush()
 
-        sec2 = svc.ensure_security("600519", "贵州茅台")
-        assert sec1.id == sec2.id  # Same entity
-
-        sec3 = svc.ensure_security("000001", "平安银行")
-        assert sec3.id != sec1.id

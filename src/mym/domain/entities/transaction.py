@@ -37,7 +37,6 @@ class Transaction(Base, IntegerPrimaryKeyMixin, TimestampMixin):
     source: Mapped[TransactionSource] = mapped_column(String(20), default=TransactionSource.MANUAL, nullable=False)
     status: Mapped[TransactionStatus] = mapped_column(String(20), default=TransactionStatus.POSTED, nullable=False)
     import_job_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("import_jobs.id"), nullable=True)
-    settlement_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("investment_settlements.id"), nullable=True)
     is_cleared: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     # Relationships

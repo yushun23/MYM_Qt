@@ -80,11 +80,6 @@ class Security(Base, IntegerPrimaryKeyMixin, TimestampMixin):
     industry: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_listed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    quotes: Mapped[list["QuoteSnapshot"]] = relationship(
-        "QuoteSnapshot", back_populates="security",
-        cascade="all, delete-orphan", lazy="selectin",
-    )
-
     def __repr__(self) -> str:
         return f"<Security(id={self.id}, symbol='{self.symbol}', name='{self.name}')>"
 
@@ -178,77 +173,6 @@ class InvestmentCashFlow(Base, IntegerPrimaryKeyMixin, TimestampMixin):
         return (
             f"<InvestmentCashFlow(id={self.id}, type={self.flow_type}, "
             f"amount={self.amount})>"
-        )
-
-
-class QuoteSnapshot(Base, IntegerPrimaryKeyMixin, TimestampMixin):
-    """Price snapshot for a security at a point in time."""
-
-    __tablename__ = "quote_snapshots"
-
-    security_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("securities.id"), nullable=False
-    )
-    quote_date: Mapped[date] = mapped_column(Date, nullable=False)
-    open_price: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
-    high_price: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
-    low_price: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
-    close_price: Mapped[Decimal] = mapped_column(Money, nullable=False)
-    volume: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    source: Mapped[str | None] = mapped_column(String(50), nullable=True)
-
-    security: Mapped["Security"] = relationship("Security", back_populates="quotes")
-
-    def __repr__(self) -> str:
-        return (
-            f"<QuoteSnapshot(id={self.id}, symbol='{self.security.symbol if self.security else '?'}', "
-            f"date={self.quote_date}, close={self.close_price})>"
-        )
-
-
-class InvestmentSettlement(Base, IntegerPrimaryKeyMixin, TimestampMixin):
-    """Monthly settlement record – results synced to core ledger."""
-
-    __tablename__ = "investment_settlements"
-    __table_args__ = (
-        CheckConstraint(
-            "month BETWEEN 1 AND 12", name="ck_settlement_month"
-        ),
-    )
-
-    investment_account_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("investment_accounts.id"), nullable=False
-    )
-    year: Mapped[int] = mapped_column(Integer, nullable=False)
-    month: Mapped[int] = mapped_column(Integer, nullable=False)
-    start_total_market_value: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
-    start_total_assets: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
-    end_total_market_value: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
-    end_total_assets: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
-    net_inflow: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"), nullable=False)
-    realized_pnl: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"), nullable=False)
-    unrealized_pnl: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
-    dividend_income: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"), nullable=False)
-    total_fees: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"), nullable=False)
-    profit_transaction_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("transactions.id"), nullable=True
-    )
-    loss_transaction_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("transactions.id"), nullable=True
-    )
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-    investment_account: Mapped["InvestmentAccount"] = relationship("InvestmentAccount", lazy="selectin")
-
-    @property
-    def period_label(self) -> str:
-        return f"{self.year}-{self.month:02d}"
-
-    def __repr__(self) -> str:
-        return (
-            f"<InvestmentSettlement(id={self.id}, {self.period_label}, "
-            f"pnl={self.realized_pnl})>"
         )
 
 

@@ -26,7 +26,6 @@ class SettingsProfile:
     window_height: int = 800
     recent_ledgers: list[str] = field(default_factory=list)
     export_dir: str = ""
-    show_stock: bool = False
     plugins_enabled: list[str] = field(default_factory=list)
 
     # Ledger-level (from database)
@@ -55,7 +54,6 @@ class SettingsProfile:
             window_height=config.get_int("window/height"),
             recent_ledgers=config.get_recent_ledgers(),
             export_dir=config.get("export/default_dir"),
-            show_stock=config.get_bool("modules/show_stock"),
             plugins_enabled=[
                 p for p in config.get("modules/plugins_enabled", "").split("|") if p
             ],
@@ -86,9 +84,6 @@ class SettingsService:
 
     def set_export_dir(self, path: str) -> None:
         self._config.set("export/default_dir", path)
-
-    def set_stock_visibility(self, visible: bool) -> None:
-        self._config.set("modules/show_stock", visible)
 
     def set_plugin_enabled(self, plugin_id: str, enabled: bool) -> None:
         current = [
